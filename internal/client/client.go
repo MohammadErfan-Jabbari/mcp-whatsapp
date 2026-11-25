@@ -97,6 +97,9 @@ func newWAClient(device *wmstore.Device, logger waLog.Logger, redactor *security
 	// restart, and ask the phone for a message this device cannot decrypt.
 	wa.UseRetryMessageStore = true
 	wa.AutomaticMessageRerequestFromPhone = true
+	// A paired device whose first connection fails on a network error keeps
+	// retrying in the background, as whatsmeow already does after a drop.
+	wa.InitialAutoReconnect = true
 	return wa
 }
 

@@ -9,6 +9,7 @@ import (
 	"net"
 	"net/http"
 	"net/url"
+	"os"
 	"strings"
 	"sync"
 	"time"
@@ -179,10 +180,10 @@ func (s *Server) Run(ctx context.Context) error {
 
 	close(s.listenerOK)
 
-	// Drive the pairing state machine.
+	// Drive the pairing state machine. A failed first connection leaves the
+	// archive, probes and pairing page up; /readyz reports it.
 	if err := s.bootDriver(ctx); err != nil {
-		_ = httpSrv.Shutdown(context.Background())
-		return fmt.Errorf("boot driver: %w", err)
+		fmt.Fprintf(os.Stderr, "daemon: connect to WhatsApp at boot: %v\n", err)
 	}
 
 	// Wait for cancellation or a listener failure.
