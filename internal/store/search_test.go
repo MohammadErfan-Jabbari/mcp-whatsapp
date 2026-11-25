@@ -159,6 +159,7 @@ func TestSearchMessages_QuerySyntaxIsInert(t *testing.T) {
 		`OR hello`, `hello OR`, `"unbalanced`, `hello"alice`, `NEAR(hello alice)`,
 		`content:hello`, `{content}: hello`, `hello*`, `*`, `-hello`, `(hello`, `AND`,
 		`^hello`, `hello + alice`, `!!!`, `'; DROP TABLE messages; --`,
+		"hello\x00alice", "\x00\"", "hello\x00",
 	} {
 		if _, err := s.SearchMessages(context.Background(), SearchParams{Query: q}); err != nil {
 			t.Errorf("query %q: %v", q, err)

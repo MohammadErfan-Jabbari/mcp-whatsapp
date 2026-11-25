@@ -76,7 +76,7 @@ WhatsApp sends history to a linked device while it pairs, and by default the pho
 
 - **New pairings only.** The request travels in the pairing handshake, so an already-linked device gets nothing more; unlink it and pair again.
 - **The phone decides** how much it sends, and delivery and completeness are controlled by WhatsApp. A sync can run for a long while after pairing: keep the phone online and `serve` running.
-- **Storage.** `messages.db` can grow substantially (media is still fetched only on demand). It also holds the full-text index behind `search_messages`, which the first start after an upgrade builds from the messages already cached.
+- **Storage.** `messages.db` can grow substantially (media is still fetched only on demand). It also holds the full-text index behind `search_messages`, which the first start after an upgrade builds from the messages already cached. If you run `VACUUM` on it by hand, SQLite may renumber the rows the index points at: rebuild the index afterwards with `INSERT INTO messages_fts(messages_fts) VALUES('rebuild');`.
 
 ### Connect your MCP client
 

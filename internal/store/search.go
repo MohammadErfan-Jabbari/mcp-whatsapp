@@ -175,9 +175,10 @@ func (w withExtraColumns) Scan(dest ...any) error {
 // ftsQuery turns free text into an FTS5 query that matches every word
 // literally: each whitespace-separated word becomes an FTS5 string, with any
 // double quote doubled, so operators such as OR, NEAR, *, ^ and column
-// filters are plain text.
+// filters are plain text. A NUL byte ends an FTS5 string early, so it
+// separates words like a space.
 func ftsQuery(q string) string {
-	words := strings.Fields(q)
+	words := strings.Fields(strings.ReplaceAll(q, "\x00", " "))
 	for i, w := range words {
 		words[i] = `"` + strings.ReplaceAll(w, `"`, `""`) + `"`
 	}
