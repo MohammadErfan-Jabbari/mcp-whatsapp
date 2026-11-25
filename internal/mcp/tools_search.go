@@ -23,7 +23,7 @@ type searchMessagesArgs struct {
 
 func (s *Server) registerSearchMessages() {
 	tool := mcp.NewTool("search_messages",
-		mcp.WithDescription(offlineSafePrefix+"Full-text search of cached WhatsApp messages by the words in their text or attachment file name, best match first, optionally filtered by chat, sender and time range; read-only, with no side effects. Every query word must appear as a whole word, ignoring case and accents, and search operators or quotes have no special meaning; use list_messages for substring matches or to read a chat in time order. Returns a JSON array of message objects, each with a `snippet` that marks the matched words in [brackets] and a bm25 `rank` (lower is better)."),
+		mcp.WithDescription(offlineSafePrefix+"Full-text search of cached WhatsApp messages by the words in their text or attachment file name, best match first, optionally filtered by chat, sender and time range; read-only, with no side effects. Every query word must appear as a whole word, ignoring case and accents, and search operators or quotes have no special meaning; use list_messages for substring matches or to read a chat in time order. Returns a JSON array of message objects, each with `sender_name`, a `snippet` that marks the matched words in [brackets] and a bm25 `rank` (lower is better)."),
 		mcp.WithString("query", mcp.Required(), mcp.Description("words to find, in any order (edited messages match their latest text; messages deleted for everyone still match)")),
 		mcp.WithString("chat_jid", mcp.Description("filter to messages in this chat ("+jidDesc+")")),
 		mcp.WithString("sender_phone_number", mcp.Description("filter to messages sent by this phone or JID ("+jidDesc+")")),
@@ -58,6 +58,21 @@ func (s *Server) registerSearchMessages() {
 			}
 			params.Before = t
 		}
-		return toolResult(s.client.Store().SearchMessages(ctx, params))
+		hits, err := s.client.Store().SearchMessages(ctx, params)
+		if err != nil {
+			return mcp.NewToolResultError(err.Error()), nil
+		}
+		out := make([]jsonSearchHit, len(hits))
+		for i, h := range hits {
+			out[i] = jsonSearchHit{SearchHit: h, SenderName: s.senderName(ctx, h.Message)}
+		}
+		return resultJSON(out)
 	}))
+}
+
+// jsonSearchHit is a search hit with the sender's display name, as
+// list_messages returns it in JSON format.
+type jsonSearchHit struct {
+	store.SearchHit
+	SenderName string `json:"sender_name"`
 }
