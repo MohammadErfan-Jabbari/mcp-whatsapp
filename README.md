@@ -117,10 +117,12 @@ The default set is 43 tools grouped by purpose. `-enable-labels` adds four read-
 | Mode | Labels off | Labels on |
 |---|---|---|
 | Full access (`serve`) | 43 tools | 47 tools |
-| Read-only (`serve -read-only`) | 15 tools | 19 tools |
+| Read-only (`serve -read-only`) | 14 tools | 18 tools |
 
 - `transcribe_audio` is always advertised in full-access mode but works only when `WHATSAPP_MCP_TRANSCRIBE_URL` is set. It is excluded from read-only mode because it uploads private audio to another service.
-- Read-only mode removes tools that send messages, mark messages read, publish presence or change the WhatsApp account. It still allows network access, media downloads, history requests, writes to the local cache (including label syncs), MCP resources, and the operator pairing and reset actions on `/pair`. It is not a network-isolation mode: cached queries work while disconnected, but live operations need a connection. A client can still read any cached data.
+- Read-only mode removes tools that send messages, mark messages read, publish presence or change the WhatsApp account. It also removes `is_on_whatsapp`, which asks WhatsApp about numbers outside the archive. It still allows network access, media downloads, history requests, writes to the local cache (including label syncs), MCP resources, and pairing on `/pair`.
+- In read-only mode the HTTP server serves only `/healthz`, `/readyz`, `/mcp`, `/pair`, `/pair/qr.png` and `/pair/code`, and answers 403 on every other path. `/pair/reset` therefore cannot unlink the device, and the paired page hides its "Force re-pair" button.
+- Read-only mode is not a network-isolation mode: cached queries work while disconnected, but live operations need a connection. A client can still read any cached data.
 
 ### Read / query
 
@@ -209,7 +211,7 @@ Enable with `serve -enable-labels` or `WHATSAPP_MCP_LABELS=1`. Label tools are n
 
 | Tool | Purpose |
 |---|---|
-| `is_on_whatsapp` | Batch-check which phone numbers are registered on WhatsApp |
+| `is_on_whatsapp` | Batch-check which phone numbers are registered on WhatsApp (excluded from read-only mode) |
 | `get_status` | Report daemon and connection status, and which account it's paired as |
 | `pairing_status` | Report the device-pairing state as a structured `setup_state` envelope (`ready` / `awaiting_qr` + `qr_payload` or `expired` / `error`) for programmatic supervisors that surface the linking QR |
 

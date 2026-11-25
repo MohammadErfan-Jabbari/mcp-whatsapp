@@ -23,7 +23,7 @@ Data lives under `./store/` (override with `-store DIR`): `messages.db`, `whatsa
 - `serve` starts the HTTP daemon on `127.0.0.1:<port>`, tracks events, serves MCP at `/mcp`, and hosts the pairing UI at `/pair`. It holds `store/.lock` while running and is mutually exclusive with another `serve` instance using the same store directory.
 - `smoke` boot-tests without connecting to WhatsApp.
 
-`serve -read-only` (env `WHATSAPP_MCP_READ_ONLY=1`) excludes WhatsApp mutation tools at registration; direct calls to removed tools are rejected. Downloads and history requests remain available, and `/pair` is still an operator lifecycle surface. When adding a tool, classify it explicitly in `internal/mcp/tools.go`; tests require every registered tool to have a reviewed classification.
+`serve -read-only` (env `WHATSAPP_MCP_READ_ONLY=1`) excludes WhatsApp mutation tools at registration; direct calls to removed tools are rejected. Downloads and history requests remain available. The daemon also answers 403 on every HTTP path outside `readOnlyRoutes` in `internal/daemon/server.go`, so `/pair/reset` is refused while pairing stays available; add a route there only if it cannot send to WhatsApp or unlink the device. When adding a tool, classify it explicitly in `internal/mcp/tools.go`; tests require every registered tool to have a reviewed classification.
 
 ## Testing
 
@@ -50,7 +50,7 @@ make upgrade-check
 
 ## Feature implementation map
 
-The MCP tool surface has 43 tools by default and 47 when the four WhatsApp Business label tools are enabled with `serve -enable-labels` or `WHATSAPP_MCP_LABELS=1`. Read-only mode exposes 15 tools by default or 19 when labels are enabled. The label tools are read-only; transcription is excluded from read-only mode because it uploads private audio to another service.
+The MCP tool surface has 43 tools by default and 47 when the four WhatsApp Business label tools are enabled with `serve -enable-labels` or `WHATSAPP_MCP_LABELS=1`. Read-only mode exposes 14 tools by default or 18 when labels are enabled; `is_on_whatsapp` is excluded because it queries numbers outside the archive. The label tools are read-only; transcription is excluded from read-only mode because it uploads private audio to another service.
 
 1. **LID resolution** — `internal/store/lid.go` normalises `@lid` JIDs to real phone numbers via `whatsmeow_lid_map`.
 2. **Sent-message storage** — `internal/client/send.go` persists outgoing messages after `SendMessage` returns.

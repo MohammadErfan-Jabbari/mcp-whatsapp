@@ -38,6 +38,8 @@ type pairPageData struct {
 	// RetryIn is the number of seconds before a new session may start, when
 	// this load could not start one yet.
 	RetryIn int
+	// ReadOnly hides the re-pair form, which a read-only daemon refuses.
+	ReadOnly bool
 }
 
 // resetter is the dependency `handlePairReset` needs. Production wiring
@@ -66,6 +68,7 @@ type pairHandlers struct {
 	flow *pairFlow
 	// readyTimeout bounds how long /pair/code waits for a new session.
 	readyTimeout time.Duration
+	readOnly     bool
 
 	// One rate limiter per endpoint.
 	pairGetLimiter   *Limiter
@@ -153,6 +156,7 @@ func (h *pairHandlers) handlePairPage(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	data := pairPageData{
 		CSRFToken: h.generateCSRFToken(),
+		ReadOnly:  h.readOnly,
 	}
 	if h.cache.Paired() {
 		if err := pairedTmpl.Execute(w, data); err != nil {
