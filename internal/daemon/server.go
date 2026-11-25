@@ -51,6 +51,7 @@ type Config struct {
 	Driver    pairDriver
 	MCPMount  func(mux *http.ServeMux)
 	AuthToken string
+	ReadOnly  bool
 }
 
 // Server is the long-lived daemon process. Safe for a single Run call.
