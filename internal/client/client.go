@@ -93,6 +93,10 @@ func newWAClient(device *wmstore.Device, logger waLog.Logger, redactor *security
 	wa := whatsmeow.NewClient(device, redactingLogger{inner: logger, redactor: redactor})
 	// whatsmeow reads this during sync; configure it before Connect and never toggle it.
 	wa.EmitAppStateEventsOnFullSync = labelsEnabled
+	// Keep sent messages in whatsapp.db so a retry receipt is answered after a
+	// restart, and ask the phone for a message this device cannot decrypt.
+	wa.UseRetryMessageStore = true
+	wa.AutomaticMessageRerequestFromPhone = true
 	return wa
 }
 

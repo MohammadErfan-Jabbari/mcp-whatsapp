@@ -120,7 +120,7 @@ The default set is 43 tools grouped by purpose. `-enable-labels` adds four read-
 | Read-only (`serve -read-only`) | 14 tools | 18 tools |
 
 - `transcribe_audio` is always advertised in full-access mode but works only when `WHATSAPP_MCP_TRANSCRIBE_URL` is set. It is excluded from read-only mode because it uploads private audio to another service.
-- Read-only mode removes tools that send messages, mark messages read, publish presence or change the WhatsApp account. It also removes `is_on_whatsapp`, which asks WhatsApp about numbers outside the archive. It still allows network access, media downloads, history requests, writes to the local cache (including label syncs), MCP resources, and pairing on `/pair`.
+- Read-only mode removes tools that send messages, mark messages read, publish presence or change the WhatsApp account. It also removes `is_on_whatsapp`, which asks WhatsApp about numbers outside the archive. It still allows network access, media downloads, history requests, writes to the local cache (including label syncs), MCP resources, and pairing on `/pair`. In every mode, the daemon asks your own phone to resend a message it cannot decrypt.
 - In read-only mode the HTTP server serves only `/healthz`, `/readyz`, `/mcp`, `/pair`, `/pair/qr.png` and `/pair/code`, and answers 403 on every other path. `/pair/reset` therefore cannot unlink the device, and the paired page hides its "Force re-pair" button.
 - Read-only mode is not a network-isolation mode: cached queries work while disconnected, but live operations need a connection. A client can still read any cached data.
 
