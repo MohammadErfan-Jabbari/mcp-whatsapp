@@ -5,14 +5,20 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"reflect"
 
 	"github.com/mark3labs/mcp-go/mcp"
 
 	"github.com/sealjay/mcp-whatsapp/internal/client"
 )
 
-// resultJSON serialises v to JSON and wraps it in a text tool result.
+// resultJSON serialises v to JSON and wraps it in a text tool result. A nil
+// slice serialises as [] rather than null, because the tools that return a
+// slice document a JSON array.
 func resultJSON(v any) (*mcp.CallToolResult, error) {
+	if rv := reflect.ValueOf(v); rv.Kind() == reflect.Slice && rv.IsNil() {
+		v = reflect.MakeSlice(rv.Type(), 0, 0).Interface()
+	}
 	b, err := json.MarshalIndent(v, "", "  ")
 	if err != nil {
 		return mcp.NewToolResultError(fmt.Sprintf("marshal: %v", err)), nil

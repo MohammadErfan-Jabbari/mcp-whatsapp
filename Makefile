@@ -1,4 +1,4 @@
-.PHONY: build test test-race test-cover lint vet fmt clean login serve bridge smoke e2e upgrade-check
+.PHONY: build test test-race test-cover lint vet fmt clean login serve bridge smoke e2e cli upgrade-check
 
 # fmt uses process substitution; force bash so `make lint` works under a POSIX /bin/sh
 SHELL := /bin/bash
@@ -34,8 +34,17 @@ fmt:
 
 lint: vet fmt
 
-e2e: build
+e2e: build cli
 	$(GO) test -tags=e2e,$(TAGS) ./e2e/...
+
+# The bot's command-line client, generated from the read-only daemon's MCP
+# tools by scripts/gen-cli.sh: cli/whatsapp.ts (checked in) and bin/whatsapp.mjs.
+cli: build cli/node_modules
+	scripts/gen-cli.sh $(BIN)
+
+cli/node_modules: cli/package-lock.json
+	npm ci --prefix cli --no-audit --no-fund
+	touch $@
 
 login: build
 	$(BIN) login

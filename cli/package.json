@@ -1,0 +1,9 @@
+{
+  "name": "whatsapp-mcp-cli",
+  "private": true,
+  "description": "Pins mcporter, which generates the bot's command-line client from the read-only daemon's MCP tools (see scripts/gen-cli.sh).",
+  "license": "MIT",
+  "devDependencies": {
+    "mcporter": "0.17.1"
+  }
+}

@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"slices"
 	"sort"
 	"strings"
 	"testing"
@@ -273,6 +274,57 @@ func TestGetMessageContext(t *testing.T) {
 	for _, m := range append(append([]Message{}, c.Before...), c.After...) {
 		if m.ChatJID != "447700000001@s.whatsapp.net" {
 			t.Fatalf("context message from wrong chat: %+v", m)
+		}
+	}
+}
+
+// The context window holds the target's neighbours, never the target itself,
+// and orders messages sent in the same second by ID, as list_messages does.
+func TestGetMessageContext_NeighboursExcludeTarget(t *testing.T) {
+	s := openTestStore(t)
+	ctx := context.Background()
+	const chat = "447700900001@s.whatsapp.net"
+	base := time.Date(2026, 11, 20, 18, 0, 0, 0, time.UTC)
+	if err := s.StoreChat(chat, "Bob", base); err != nil {
+		t.Fatal(err)
+	}
+	for _, m := range []Message{
+		{ID: "c1", Timestamp: base},
+		{ID: "c2", Timestamp: base.Add(time.Minute)},
+		{ID: "c3", Timestamp: base.Add(time.Minute)},
+		{ID: "c4", Timestamp: base.Add(time.Minute)},
+		{ID: "c5", Timestamp: base.Add(2 * time.Minute)},
+	} {
+		m.ChatJID, m.Sender, m.Content = chat, "447700900001", "text "+m.ID
+		if err := s.StoreMessage(ctx, m, nil, nil, nil, 0); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	ids := func(ms []Message) []string {
+		out := []string{}
+		for _, m := range ms {
+			out = append(out, m.ID)
+		}
+		return out
+	}
+	for _, tc := range []struct {
+		target        string
+		before, after []string
+	}{
+		{"c3", []string{"c2", "c1"}, []string{"c4", "c5"}},
+		{"c1", []string{}, []string{"c2", "c3"}},
+		{"c5", []string{"c4", "c3"}, []string{}},
+	} {
+		c, err := s.GetMessageContext(ctx, tc.target, 2, 2)
+		if err != nil {
+			t.Fatalf("GetMessageContext(%s): %v", tc.target, err)
+		}
+		if got := ids(c.Before); !slices.Equal(got, tc.before) {
+			t.Errorf("%s before = %v, want %v", tc.target, got, tc.before)
+		}
+		if got := ids(c.After); !slices.Equal(got, tc.after) {
+			t.Errorf("%s after = %v, want %v", tc.target, got, tc.after)
 		}
 	}
 }
