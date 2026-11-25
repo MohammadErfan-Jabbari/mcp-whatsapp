@@ -216,3 +216,22 @@ func TestSearchMessagesTool_HitsCarrySenderName(t *testing.T) {
 		t.Fatalf("hits = %+v, want m1 from Alice", hits)
 	}
 }
+
+// Tools documented to return a JSON array return [] when nothing matches,
+// not null, so a JSON client can decode the result as an array.
+func TestListTools_NoMatchReturnsEmptyArray(t *testing.T) {
+	s := newStoreBackedReadOnlyServer(t)
+	for _, tc := range []struct {
+		tool string
+		args map[string]any
+	}{
+		{"list_chats", map[string]any{"query": "nobody"}},
+		{"search_contacts", map[string]any{"query": "nobody"}},
+		{"search_messages", map[string]any{"query": "nobody"}},
+	} {
+		out, isErr := callTool(t, s, tc.tool, tc.args)
+		if isErr || strings.TrimSpace(out) != "[]" {
+			t.Errorf("%s(%v) = %q, want []", tc.tool, tc.args, out)
+		}
+	}
+}
