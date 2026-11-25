@@ -26,12 +26,16 @@ bin=$(realpath "${1:-$repo/bin/whatsapp-mcp}")
 addr=${WHATSAPP_MCP_ADDR:-127.0.0.1:8765}
 mcporter=$repo/cli/node_modules/.bin/mcporter
 
+# GEN_CLI_ISOLATED marks the re-run; it is not meant to be set by hand.
 if [[ -z "${GEN_CLI_ISOLATED:-}" ]]; then
   exec unshare -rn env GEN_CLI_ISOLATED=1 WHATSAPP_MCP_ADDR="$addr" "$0" "$bin"
 fi
 
 # Routes that leave the machine, in every routing table: any not on loopback.
-outside=$({ ip route show table all; ip -6 route show table all; } | grep -vw 'dev lo' || true)
+# Each assignment stops the script, under set -e, if ip fails.
+routes4=$(ip -4 route show table all)
+routes6=$(ip -6 route show table all)
+outside=$(printf '%s\n%s\n' "$routes4" "$routes6" | grep -vw 'dev lo' | grep . || true)
 if [[ -n "$outside" ]]; then
   echo "gen-cli: routes off the machine inside the namespace:" >&2
   echo "$outside" >&2
@@ -50,6 +54,12 @@ done
 # such as WHATSAPP_MCP_LABELS, must not change the generated tools.
 unset HTTPS_PROXY HTTP_PROXY https_proxy http_proxy ALL_PROXY all_proxy
 while read -r name; do unset "$name"; done < <(compgen -e | grep '^WHATSAPP_MCP_' || true)
+
+# The health check below must reach this script's daemon, not another one.
+if curl -s -o /dev/null "http://$addr/healthz"; then
+  echo "gen-cli: something already answers on $addr" >&2
+  exit 1
+fi
 
 store=$(mktemp -d)
 "$bin" -store "$store" serve -read-only -addr "$addr" >"$store/serve.log" 2>&1 &
