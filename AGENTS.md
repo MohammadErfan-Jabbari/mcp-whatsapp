@@ -20,7 +20,7 @@ Data lives under `./store/` (override with `-store DIR`): `messages.db`, `whatsa
 ## Subcommands
 
 - `login` pairs the device via QR (or `-phone` for a pairing code) and writes the session to `store/whatsapp.db`.
-- `serve` starts the HTTP daemon on `127.0.0.1:<port>`, tracks events, serves MCP at `/mcp`, and hosts the pairing UI at `/pair`. It holds `store/.lock` while running and is mutually exclusive with another `serve` instance using the same store directory.
+- `serve` starts the HTTP daemon on `127.0.0.1:<port>`, tracks events, serves MCP at `/mcp`, and hosts the pairing UI at `/pair`. It holds `store/.lock` while running and is mutually exclusive with another `serve` instance using the same store directory. A failed first connection does not stop it: `Server.Run` in `internal/daemon/server.go` logs the error and keeps serving, and the daemon connects with `ConnectOpts.RetryInBackground` (whatsmeow's `InitialAutoReconnect`), so a paired device retries a network error in the background. `login` leaves it off and reports the error.
 - `smoke` boot-tests without connecting to WhatsApp.
 
 `serve -read-only` (env `WHATSAPP_MCP_READ_ONLY=1`) excludes WhatsApp mutation tools at registration; direct calls to removed tools are rejected. Downloads and history requests remain available. The daemon also answers 403 on every HTTP path outside `readOnlyRoutes` in `internal/daemon/server.go`, so `/pair/reset` is refused while pairing stays available; add a route there only if it cannot send to WhatsApp or unlink the device. When adding a tool, classify it explicitly in `internal/mcp/tools.go`; tests require every registered tool to have a reviewed classification.

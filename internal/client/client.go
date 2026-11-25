@@ -299,6 +299,11 @@ type ConnectOpts struct {
 	// AllowUnpaired skips the "must be paired" guard so that the QR
 	// pairing state machine can start. Normal callers leave this false.
 	AllowUnpaired bool
+	// RetryInBackground turns a network error on the first connection into
+	// background retries, as whatsmeow already does after a drop, and makes
+	// Connect return nil. Only a paired device retries. The daemon sets it;
+	// login leaves it off so the error reaches the user.
+	RetryInBackground bool
 }
 
 // errNotPaired is returned when Connect is called without AllowUnpaired on
@@ -309,10 +314,12 @@ var errNotPaired = errors.New("device not paired; run login first")
 // when the device has no stored session; set AllowUnpaired to bypass that
 // guard (e.g. during the QR pairing flow).
 func (c *Client) Connect(ctx context.Context, opts ConnectOpts) error {
-	if !opts.AllowUnpaired && c.waClient().Store.ID == nil {
+	wa := c.waClient()
+	if !opts.AllowUnpaired && wa.Store.ID == nil {
 		return errNotPaired
 	}
-	return c.waClient().ConnectContext(ctx)
+	wa.InitialAutoReconnect = opts.RetryInBackground
+	return wa.ConnectContext(ctx)
 }
 
 // Login runs the QR-code pairing flow. Writes the QR code to qrOut (stdout

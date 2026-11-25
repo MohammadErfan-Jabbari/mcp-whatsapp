@@ -16,9 +16,10 @@ import (
 // whatsmeow client. Methods are called by Server; channels let the test
 // simulate events.
 type fakePairDriver struct {
-	loggedIn bool
-	logoutFn func(context.Context) error
-	startErr error
+	loggedIn   bool
+	logoutFn   func(context.Context) error
+	startErr   error
+	connectErr error
 
 	qrCh   chan string
 	pairCh chan struct{}
@@ -72,6 +73,9 @@ func (f *fakePairDriver) StartPairing(ctx context.Context, onQR func(string), on
 
 func (f *fakePairDriver) Connect(ctx context.Context, onLoggedOut func()) error {
 	f.connects.Add(1)
+	if f.connectErr != nil {
+		return f.connectErr
+	}
 	go func() {
 		select {
 		case <-ctx.Done():
@@ -155,6 +159,53 @@ func TestServer_PairedStartThenLoggedOut(t *testing.T) {
 
 	drv.outCh <- struct{}{}
 	waitFor(t, func() bool { return !s.Cache().Paired() }, "LoggedOut flipped cache to unpaired")
+}
+
+// TestServer_BootConnectFailureKeepsServing covers a daemon that starts while
+// WhatsApp is unreachable: it must keep answering health probes and MCP over
+// the local archive instead of exiting.
+func TestServer_BootConnectFailureKeepsServing(t *testing.T) {
+	unreachable := errors.New("dial tcp: connect: network is unreachable")
+	for _, tc := range []struct {
+		name     string
+		loggedIn bool
+	}{
+		{"paired", true},
+		{"unpaired", false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			drv := &healthDriver{fakePairDriver: newFakePairDriver(tc.loggedIn)}
+			drv.connectErr = unreachable
+			drv.startErr = unreachable
+			s := newTestServer(t, drv)
+			s.SetMCPMount(func(mux *http.ServeMux) {
+				mux.HandleFunc("/mcp", func(w http.ResponseWriter, _ *http.Request) {
+					_, _ = io.WriteString(w, "archive")
+				})
+			})
+
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+			runErr := make(chan error, 1)
+			go func() { runErr <- s.Run(ctx) }()
+			waitFor(t, func() bool { return drv.connects.Load()+drv.starts.Load() == 1 }, "boot tried WhatsApp")
+
+			select {
+			case err := <-runErr:
+				t.Fatalf("Run returned %v while WhatsApp was unreachable", err)
+			case <-time.After(100 * time.Millisecond):
+			}
+			base := "http://" + s.BoundAddr()
+			assertHTTP(t, base+"/healthz", http.StatusOK, `"ok":true`)
+			assertHTTP(t, base+"/readyz", http.StatusServiceUnavailable, `"ready":false`)
+			assertHTTP(t, base+"/mcp", http.StatusOK, "archive")
+
+			cancel()
+			if err := <-runErr; err != nil {
+				t.Fatalf("Run after shutdown: %v", err)
+			}
+		})
+	}
 }
 
 func TestServer_AuthTokenGatesMCPAndPair(t *testing.T) {
