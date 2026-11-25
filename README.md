@@ -107,7 +107,7 @@ Restart the client after changing its configuration.
 
 ### Command-line client
 
-`make cli` generates a command-line client for the read-only daemon with [mcporter](https://github.com/openclaw/mcporter), for scripts and agents that call commands rather than MCP. It has one command per tool a read-only daemon serves, such as `list-chats`, `list-messages`, `search-messages` and `get-message-context`, and no command that sends or changes anything. It needs Node.js 24 or later.
+`make cli` generates a command-line client for the read-only daemon with [mcporter](https://github.com/openclaw/mcporter), for scripts and agents that call commands rather than MCP. It has one command per tool a read-only daemon serves with default settings, such as `list-chats`, `list-messages`, `search-messages` and `get-message-context`. It has no command that sends, edits or deletes messages or changes a group. `request-sync` and `download-media` can still ask your phone for data and write to the local cache, as in read-only mode. The label tools are left out, because the daemon serves them only with `-enable-labels`. The client needs Node.js 24 or later.
 
 ```bash
 make cli
@@ -120,7 +120,7 @@ node bin/whatsapp.mjs list-messages --help
 
 With `-o json` the client prints the tool's JSON. `list-messages` also needs `--format json`, because its default is text. A failed call exits with status 1 and prints the MCP result, with `isError` set to true. When a tool returns `null`, as `get_chat` does for a chat it has not cached, the client prints the MCP result as well.
 
-The client calls `http://127.0.0.1:8765/mcp`, the address it was generated against. To use another, set `WHATSAPP_MCP_ADDR` when you run `make cli`. `scripts/gen-cli.sh` reads the tools from a read-only daemon on an empty store. It runs that daemon inside a new network namespace (`unshare -rn`) with no route off the machine, so generating the client never contacts WhatsApp. It writes `cli/whatsapp.ts`, which is checked in, and the bundle `bin/whatsapp.mjs`. When the tools change, for example after merging upstream, run `make cli` and commit `cli/whatsapp.ts`.
+The client calls `http://127.0.0.1:8765/mcp`, the address it was generated against. To use another, set `WHATSAPP_MCP_ADDR` when you run `make cli`. `scripts/gen-cli.sh` reads the tools from a read-only daemon on an empty store. It always runs that daemon inside a new network namespace (`unshare -rn`), and refuses to start it if the namespace has any route off the machine, so generating the client never contacts WhatsApp. It ignores the daemon's other `WHATSAPP_MCP_*` settings, so the same tools give the same client. It writes `cli/whatsapp.ts`, which is checked in, and the bundle `bin/whatsapp.mjs`. When the tools change, for example after merging upstream, run `make cli` and commit `cli/whatsapp.ts`.
 
 ### First queries
 

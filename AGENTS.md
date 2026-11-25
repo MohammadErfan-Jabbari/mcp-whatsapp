@@ -37,7 +37,7 @@ make vet           # go vet
 make lint          # go vet and verify gofmt
 ```
 
-`make cli` runs `scripts/gen-cli.sh`, which starts a read-only daemon on an empty store inside `unshare -rn` and has mcporter (pinned in `cli/package.json`) generate the client from its tools. The daemon would dial WhatsApp to pair, so the script refuses to start it while any route leads off the machine. After a change to the read-only tools, including an upstream merge, run `make cli` and commit `cli/whatsapp.ts`. `make e2e` runs the daemon with network access, so run it inside `unshare -rn` too.
+`make cli` runs `scripts/gen-cli.sh`, which starts a read-only daemon on an empty store and has mcporter (pinned in `cli/package.json`) generate the client from its tools. The daemon would dial WhatsApp to pair, so the script always re-runs itself inside `unshare -rn` and exits there if any route leads off the machine. After a change to the read-only tools, including an upstream merge, run `make cli` and commit `cli/whatsapp.ts`. `make e2e` starts daemons on empty stores in the current network namespace, so run it inside `unshare -rn` too. Both targets need `cli/node_modules`, which `npm ci --prefix cli` installs and which needs the network, so on a fresh checkout run that first, outside the namespace.
 
 The Makefile passes `-tags sqlite_fts5` to every build, vet and test. Pass it yourself when you call `go test` or `go build` directly: without it the store cannot open (see feature 14).
 
