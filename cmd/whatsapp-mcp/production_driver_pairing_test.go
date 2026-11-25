@@ -270,7 +270,8 @@ func TestProductionDriverFailedDialCancelsQRReader(t *testing.T) {
 		}
 	}
 
-	cancel()
+	// The parent context stays live, so each reader must exit because its own
+	// failed attempt cancelled it.
 	driver.Disconnect()
 	// Each reader exits soon after its attempt is cancelled, so wait for the
 	// count to fall back to where it started. A reader left over from an
