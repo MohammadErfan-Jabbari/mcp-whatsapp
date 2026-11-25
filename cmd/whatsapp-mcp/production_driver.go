@@ -158,7 +158,7 @@ func (p *productionDriver) Connect(ctx context.Context, onLoggedOut func()) erro
 		// The client is already connected; the handlers are now installed.
 		return nil
 	}
-	return p.c.Connect(ctx, client.ConnectOpts{})
+	return p.c.Connect(ctx, client.ConnectOpts{RetryInBackground: true})
 }
 
 func (p *productionDriver) Logout(ctx context.Context) error { return p.c.Logout(ctx) }

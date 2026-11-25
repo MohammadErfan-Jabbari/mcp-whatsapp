@@ -112,14 +112,14 @@ func newOfflineClient(t *testing.T, paired bool) (*Client, *atomic.Int32) {
 	return c, dials
 }
 
-// TestConnect_PairedKeepsRedialingWhileWhatsAppUnreachable covers a paired
-// daemon that starts while the network is down: Connect must not fail, and
-// the client must keep dialling WhatsApp in the background.
-func TestConnect_PairedKeepsRedialingWhileWhatsAppUnreachable(t *testing.T) {
+// TestConnect_RetryInBackgroundKeepsRedialing covers a paired daemon that
+// starts while the network is down: Connect must not fail, and the client must
+// keep dialling WhatsApp in the background.
+func TestConnect_RetryInBackgroundKeepsRedialing(t *testing.T) {
 	c, dials := newOfflineClient(t, true)
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	if err := c.Connect(ctx, ConnectOpts{}); err != nil {
+	if err := c.Connect(ctx, ConnectOpts{RetryInBackground: true}); err != nil {
 		t.Fatalf("Connect while WhatsApp is unreachable: %v", err)
 	}
 	deadline := time.Now().Add(5 * time.Second)

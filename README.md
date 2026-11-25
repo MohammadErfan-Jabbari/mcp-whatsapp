@@ -300,7 +300,7 @@ Encrypted poll votes received through history sync are saved until the poll and 
 
 A file lock on `store/.lock` allows one `serve` or `login` process per store. Multiple MCP clients can share that daemon and its WhatsApp session.
 
-`serve` stays up when it cannot reach WhatsApp at startup. Cached queries, `/healthz` and `/pair` keep working, `/readyz` answers 503, and a paired device retries a network error in the background, waiting 2 seconds longer before each attempt. Its other connection errors, such as WhatsApp refusing the connection, are logged and not retried until the daemon restarts.
+`serve` stays up when it cannot reach WhatsApp at startup. Cached queries, `/healthz` and `/pair` keep working, `/readyz` answers 503, and a paired device retries a network error in the background, waiting 2 seconds longer before each attempt. If that first attempt fails with another error, such as WhatsApp refusing the connection, `serve` logs it and does not retry until it restarts.
 
 For monitoring, `GET /healthz` returns `200 {"ok":true}` while the HTTP server is alive. `GET /readyz` returns `200 {"ready":true}` only while paired and connected, or `503 {"ready":false}` otherwise (not paired, or disconnected). Both are unauthenticated, even with `-allow-remote`, and expose no account identifiers; restrict network access to the listener as needed. `get_status` also reports `connection_state` and `connection_state_since`, including logged-out, replaced, outdated, temporary-ban and connection-failure events. A keepalive timeout is reported until restored or disconnected; it does not itself mean the socket has closed.
 
