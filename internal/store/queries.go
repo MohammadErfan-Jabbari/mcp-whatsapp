@@ -341,11 +341,11 @@ func (s *Store) GetMessageContext(ctx context.Context, messageID string, before,
 	target.IsGroup = strings.HasSuffix(target.ChatJID, "@g.us")
 	target.SenderPhone = s.resolveSenderPhone(target.Sender)
 
-	beforeMsgs, err := s.queryContextWindow(ctx, msgChat, ts, before, false)
+	beforeMsgs, err := s.queryContextWindow(ctx, msgChat, ts, id, before, false)
 	if err != nil {
 		return nil, err
 	}
-	afterMsgs, err := s.queryContextWindow(ctx, msgChat, ts, after, true)
+	afterMsgs, err := s.queryContextWindow(ctx, msgChat, ts, id, after, true)
 	if err != nil {
 		return nil, err
 	}
@@ -399,22 +399,28 @@ func (s *Store) chatNameByJID(ctx context.Context, jid string) string {
 
 // queryContextWindow fetches `limit` messages in chat either strictly before
 // (ascending=false) or strictly after (ascending=true) the anchor timestamp.
-func (s *Store) queryContextWindow(ctx context.Context, chatJID string, anchor time.Time, limit int, ascending bool) ([]Message, error) {
+func (s *Store) queryContextWindow(ctx context.Context, chatJID string, anchor time.Time, anchorID string, limit int, ascending bool) ([]Message, error) {
 	op := "<"
 	order := "DESC"
 	if ascending {
 		op = ">"
 		order = "ASC"
 	}
-	q := fmt.Sprintf(`
-		SELECT `+listMessageColumns+`
+	// Compare listMessageTimeKey, as list_messages does: a bound time.Time is
+	// formatted differently from the stored text, so comparing them directly
+	// put the target in its own after window. Messages sent in the same
+	// second are ordered by ID.
+	q := `
+		SELECT ` + listMessageColumns + `
 		FROM messages
 		JOIN chats ON messages.chat_jid = chats.jid
-		WHERE messages.chat_jid = ? AND messages.timestamp %s ?
-		ORDER BY messages.timestamp %s, messages.id %s
-		LIMIT ?`, op, order, order)
+		WHERE messages.chat_jid = ?
+		  AND (` + listMessageTimeKey + ` ` + op + ` ? OR (` + listMessageTimeKey + ` = ? AND messages.id ` + op + ` ?))
+		ORDER BY ` + listMessageTimeKey + ` ` + order + `, messages.id ` + order + `
+		LIMIT ?`
 
-	rows, err := s.db.QueryContext(ctx, q, chatJID, anchor, limit)
+	key := utcTimestampText(anchor)[:29]
+	rows, err := s.db.QueryContext(ctx, q, chatJID, key, key, anchorID, limit)
 	if err != nil {
 		return nil, fmt.Errorf("context window: %w", err)
 	}
