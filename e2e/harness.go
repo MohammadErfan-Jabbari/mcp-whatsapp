@@ -28,9 +28,15 @@ type harness struct {
 
 func newHarness(t *testing.T, serveArgs ...string) *harness {
 	t.Helper()
+	return newHarnessWithStore(t, t.TempDir(), serveArgs...)
+}
+
+// newHarnessWithStore is newHarness over an existing store directory, such as
+// one a test has filled with messages.
+func newHarnessWithStore(t *testing.T, storeDir string, serveArgs ...string) *harness {
+	t.Helper()
 	repo := repoRoot(t)
 	bin := filepath.Join(repo, "bin", "whatsapp-mcp")
-	storeDir := t.TempDir()
 	port := freePort(t)
 	addr := fmt.Sprintf("127.0.0.1:%d", port)
 
