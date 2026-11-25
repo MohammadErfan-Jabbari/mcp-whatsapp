@@ -3,6 +3,8 @@ package main
 import (
 	"context"
 	"errors"
+	"fmt"
+	"os"
 	"sync"
 
 	"go.mau.fi/whatsmeow"
@@ -32,7 +34,9 @@ type productionDriver struct {
 	// the device is paired; it runs after a pairing success and before
 	// onSuccess connects the main client (issue #127).
 	rebindAfterPairing func()
-	pairingFailed      func(error)
+	// pairingFailed reports why an attempt ended early, such as WhatsApp
+	// asking for a passkey this server cannot give.
+	pairingFailed func(error)
 
 	pairingMu     sync.Mutex
 	activePairing *pairingAttempt
@@ -43,6 +47,9 @@ func newProductionDriver(c *client.Client) *productionDriver {
 		c:                  c,
 		newPairingSession:  func() pairingSession { return c.NewPairingSession() },
 		rebindAfterPairing: c.RebindAfterPairing,
+		pairingFailed: func(err error) {
+			fmt.Fprintf(os.Stderr, "pairing: %v\n", err)
+		},
 	}
 }
 
@@ -97,6 +104,17 @@ func (p *productionDriver) StartPairing(ctx context.Context, onQR func(string), 
 						session.Disconnect()
 					}
 					p.clearPairingAttempt(attempt)
+					if onExpired != nil {
+						onExpired()
+					}
+					return
+				}
+				if err := client.PairingEventError(item); err != nil {
+					session.Disconnect()
+					p.clearPairingAttempt(attempt)
+					if p.pairingFailed != nil {
+						p.pairingFailed(err)
+					}
 					if onExpired != nil {
 						onExpired()
 					}

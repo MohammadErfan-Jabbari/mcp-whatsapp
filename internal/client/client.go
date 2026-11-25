@@ -339,6 +339,9 @@ func (c *Client) Login(ctx context.Context, qrOut io.Writer) error {
 			if !ok {
 				return errors.New("QR channel closed before pairing completed")
 			}
+			if err := PairingEventError(evt); err != nil {
+				return err
+			}
 			switch evt.Event {
 			case "code":
 				fmt.Fprintln(qrOut, "\nScan this QR code with your WhatsApp app:")
@@ -390,6 +393,9 @@ func (c *Client) PairPhoneLogin(ctx context.Context, phone string, codeOut io.Wr
 		case evt, ok := <-qrChan:
 			if !ok {
 				return errors.New("QR channel closed before pairing completed")
+			}
+			if err := PairingEventError(evt); err != nil {
+				return err
 			}
 			switch evt.Event {
 			case "success":

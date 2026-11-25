@@ -68,6 +68,7 @@ After pairing, run `./bin/whatsapp-mcp healthcheck` in the second terminal. Exit
 - **No browser:** `./bin/whatsapp-mcp login` renders the QR in the terminal. Stop `serve` first, because `login` and `serve` cannot share a store.
 - **No QR scan:** use the phone-number form on `/pair` (or `login -phone +<international number>`), then type the code into *Link a Device → Link with phone number instead*. The `+` belongs to pairing only; send recipients use digits without `+`.
 - **Expired pairing attempt:** WhatsApp closes an unused pairing session once its QR codes run out (about three minutes). Opening `/pair` or requesting a pairing code then starts a new one, at most one every 30 seconds; a `/pair` tab left open does not restart it by itself.
+- **Passkey request:** if WhatsApp asks the linking device for a passkey, pairing stops at once with an error that says so, in the `login` output or, for `/pair`, in the `serve` log. This server cannot answer passkey challenges.
 - The `/pair/*` endpoints are CSRF-protected and rate-limited (15 GET/min, 1 reset/min, 3 code requests/min).
 
 #### Full history at pairing
