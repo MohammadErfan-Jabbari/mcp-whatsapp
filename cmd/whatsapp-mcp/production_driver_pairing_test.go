@@ -285,3 +285,57 @@ func TestProductionDriverFailedDialCancelsQRReader(t *testing.T) {
 		t.Fatalf("failed pairing retained %d QR-reader goroutines", retained)
 	}
 }
+
+// A passkey request, or a pairing error that leaves the QR channel open,
+// ends the attempt at once with an error that says why, instead of waiting
+// minutes for the QR codes to run out.
+func TestProductionDriverPairingFailsFastOnPasskeyRequest(t *testing.T) {
+	cause := errors.New("failed to parse passkey notification")
+	for _, tc := range []struct {
+		name string
+		item whatsmeow.QRChannelItem
+		want error
+	}{
+		{"passkey request", whatsmeow.QRChannelItem{Event: whatsmeow.QRChannelEventPasskeyRequest, PasskeyRequest: &events.PairPasskeyRequest{}}, client.ErrPasskeyRequired},
+		{"passkey error", whatsmeow.QRChannelItem{Event: whatsmeow.QRChannelEventError, Error: cause}, cause},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			// The channel stays open after these events, as whatsmeow leaves it.
+			qrCh := make(chan whatsmeow.QRChannelItem, 1)
+			session := &fakePairingSession{qrCh: qrCh}
+			failures := make(chan error, 1)
+			driver := &productionDriver{
+				newPairingSession: func() pairingSession { return session },
+				pairingFailed:     func(err error) { failures <- err },
+			}
+			expired := make(chan struct{})
+			if err := driver.StartPairing(context.Background(), nil, func() { t.Error("pairing reported success") }, func() { close(expired) }); err != nil {
+				t.Fatalf("start pairing: %v", err)
+			}
+			qrCh <- tc.item
+
+			select {
+			case <-expired:
+			case <-time.After(2 * time.Second):
+				t.Fatalf("pairing kept waiting after a %s event", tc.item.Event)
+			}
+			select {
+			case err := <-failures:
+				if !errors.Is(err, tc.want) {
+					t.Fatalf("pairing failure = %v, want %v", err, tc.want)
+				}
+			default:
+				t.Fatal("pairing ended without reporting why")
+			}
+			if session.IsConnected() {
+				t.Fatal("pairing session remained connected after the failure")
+			}
+			driver.pairingMu.Lock()
+			active := driver.activePairing
+			driver.pairingMu.Unlock()
+			if active != nil {
+				t.Fatal("pairing attempt remained active after the failure")
+			}
+		})
+	}
+}

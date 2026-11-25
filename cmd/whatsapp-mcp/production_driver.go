@@ -32,6 +32,7 @@ type productionDriver struct {
 	// the device is paired; it runs after a pairing success and before
 	// onSuccess connects the main client (issue #127).
 	rebindAfterPairing func()
+	pairingFailed      func(error)
 
 	pairingMu     sync.Mutex
 	activePairing *pairingAttempt
