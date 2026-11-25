@@ -1,6 +1,8 @@
 package mcp
 
 // Every tool is explicitly reviewed; unknown tools fail closed in read-only mode.
+// is_on_whatsapp is excluded because it asks WhatsApp about numbers the caller
+// chooses, which reading the archive never needs.
 var readOnlyToolAccess = map[string]bool{
 	"block_contact":             false,
 	"create_group":              false,
@@ -16,7 +18,7 @@ var readOnlyToolAccess = map[string]bool{
 	"get_poll_results":          true,
 	"get_privacy_settings":      true,
 	"get_status":                true,
-	"is_on_whatsapp":            true,
+	"is_on_whatsapp":            false,
 	"join_group_with_link":      false,
 	"leave_group":               false,
 	"list_chats":                true,

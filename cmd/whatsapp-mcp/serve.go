@@ -134,6 +134,7 @@ func runServe(storeDir string, redactor *security.Redactor, args []string) int {
 		Addr:      addr,
 		Driver:    drv,
 		AuthToken: authToken,
+		ReadOnly:  readOnly,
 	})
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "daemon.New: %v\n", err)
@@ -143,7 +144,7 @@ func runServe(storeDir string, redactor *security.Redactor, args []string) int {
 	var mcpServer *mcpsrv.Server
 	if readOnly {
 		mcpServer = mcpsrv.NewReadOnlyServer(c, d.Cache(), labelsEnabled)
-		fmt.Fprintln(os.Stderr, "read-only mode: WhatsApp mutation tools are disabled; /pair remains available to the operator")
+		fmt.Fprintln(os.Stderr, "read-only mode: WhatsApp mutation tools and /pair/reset are disabled; pairing stays available to the operator")
 	} else {
 		mcpServer = mcpsrv.NewServer(c, d.Cache(), labelsEnabled)
 	}

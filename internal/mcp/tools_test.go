@@ -187,7 +187,6 @@ var expectedReadOnlyTools = map[string]bool{
 	"get_poll_results":     true,
 	"get_privacy_settings": true,
 	"get_status":           true,
-	"is_on_whatsapp":       true,
 	"list_chats":           true,
 	"list_chats_by_label":  true,
 	"list_groups":          true,

@@ -46,11 +46,27 @@ type pairDriver interface {
 // AuthToken, if non-empty, gates /mcp and /pair/* behind the HTTP header
 // `Authorization: Bearer <token>`. Loopback-bound operation passes an
 // empty token and leaves these routes unauthenticated.
+//
+// ReadOnly serves only readOnlyRoutes and answers 403 on every other path.
 type Config struct {
 	Addr      string
 	Driver    pairDriver
 	MCPMount  func(mux *http.ServeMux)
 	AuthToken string
+	ReadOnly  bool
+}
+
+// readOnlyRoutes are the only paths a read-only daemon serves. Every other
+// path answers 403, so /pair/reset cannot unlink the device and a route added
+// later stays closed until it is listed here. Pairing stays open because an
+// unpaired archive cannot sync.
+var readOnlyRoutes = map[string]bool{
+	"/healthz":     true,
+	"/readyz":      true,
+	"/mcp":         true,
+	"/pair":        true,
+	"/pair/qr.png": true,
+	"/pair/code":   true,
 }
 
 // Server is the long-lived daemon process. Safe for a single Run call.
@@ -112,6 +128,7 @@ func (s *Server) Run(ctx context.Context) error {
 	}
 	handlers := newPairHandlers(s.cache, s.cfg.Driver, coder)
 	handlers.flow = s.flow
+	handlers.readOnly = s.cfg.ReadOnly
 	handlers.mount(mux)
 	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, _ *http.Request) {
 		writeProbe(w, http.StatusOK, "ok", true)
@@ -134,7 +151,11 @@ func (s *Server) Run(ctx context.Context) error {
 		})
 	}
 
-	rootHandler := requestLimitMiddleware(originMiddleware(authMiddleware(mux, s.cfg.AuthToken)))
+	var handler http.Handler = mux
+	if s.cfg.ReadOnly {
+		handler = readOnlyMiddleware(mux)
+	}
+	rootHandler := requestLimitMiddleware(originMiddleware(authMiddleware(handler, s.cfg.AuthToken)))
 
 	ln, err := net.Listen("tcp", s.cfg.Addr)
 	if err != nil {
@@ -223,6 +244,16 @@ func requestLimitMiddleware(next http.Handler) http.Handler {
 		}
 		if r.Body != nil && r.ContentLength != 0 {
 			r.Body = http.MaxBytesReader(w, r.Body, maxRequestBodyBytes)
+		}
+		next.ServeHTTP(w, r)
+	})
+}
+
+func readOnlyMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if !readOnlyRoutes[r.URL.Path] {
+			http.Error(w, "route disabled in read-only mode", http.StatusForbidden)
+			return
 		}
 		next.ServeHTTP(w, r)
 	})
