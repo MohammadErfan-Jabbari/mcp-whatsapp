@@ -62,11 +62,28 @@ type listMessagesArgs struct {
 	IncludeContext    *bool  `json:"include_context,omitempty"`
 	ContextBefore     int    `json:"context_before,omitempty"`
 	ContextAfter      int    `json:"context_after,omitempty"`
+	Format            string `json:"format,omitempty"`
+}
+
+// jsonMessage is a message in a JSON tool result: the cached fields plus the
+// sender's display name, which the text format prints after "From:".
+type jsonMessage struct {
+	store.Message
+	SenderName string `json:"sender_name"`
+}
+
+// senderName names a message's sender the way FormatMessage does: "Me" for
+// own messages, else the address-book or chat name, else the sender ID.
+func (s *Server) senderName(ctx context.Context, m store.Message) string {
+	if m.IsFromMe {
+		return "Me"
+	}
+	return s.client.Store().GetSenderName(ctx, m.Sender)
 }
 
 func (s *Server) registerListMessages() {
 	tool := mcp.NewTool("list_messages",
-		mcp.WithDescription(offlineSafePrefix+"Search and page through cached WhatsApp messages, optionally filtering by chat, sender, time range, and substring; can include surrounding context messages. Read-only; no side effects. Use get_message_context to expand around a single known message ID, or request_sync to backfill missing history. Returns a human-readable formatted text block listing matching messages and, when more results remain, a `next_cursor` line; edited messages show an `[edited]` marker and messages deleted for everyone keep their text behind a `[deleted <time> UTC]` marker. Continue stable walks with that `next_cursor` passed back as `cursor`, because the legacy `page` offset can repeat or miss messages when new messages arrive between calls."),
+		mcp.WithDescription(offlineSafePrefix+"Search and page through cached WhatsApp messages, optionally filtering by chat, sender, time range, and substring; can include surrounding context messages. Read-only; no side effects. Use get_message_context to expand around a single known message ID, or request_sync to backfill missing history. Returns a human-readable formatted text block listing matching messages and, when more results remain, a `next_cursor` line; edited messages show an `[edited]` marker and messages deleted for everyone keep their text behind a `[deleted <time> UTC]` marker. Continue stable walks with that `next_cursor` passed back as `cursor`, because the legacy `page` offset can repeat or miss messages when new messages arrive between calls. With `format` set to `json` it returns the same messages as a JSON object instead: a `messages` array of message objects (each with `sender_name`; `edited`, `revoked` and `revoked_at` appear only when set) and `next_cursor` when more results remain."),
 		mcp.WithString("after", mcp.Description("ISO-8601 UTC lower bound on message timestamp (exclusive)")),
 		mcp.WithString("before", mcp.Description("ISO-8601 UTC upper bound on message timestamp (exclusive)")),
 		mcp.WithString("sender_phone_number", mcp.Description("filter to messages sent by this phone or JID ("+jidDesc+")")),
@@ -78,12 +95,16 @@ func (s *Server) registerListMessages() {
 		mcp.WithBoolean("include_context", mcp.DefaultBool(true), mcp.Description("if true, attach a few surrounding messages to each match (defaults to true)")),
 		mcp.WithNumber("context_before", mcp.DefaultNumber(1), mcp.Description("messages to include before each match (default 1, capped at 20 server-side)")),
 		mcp.WithNumber("context_after", mcp.DefaultNumber(1), mcp.Description("messages to include after each match (default 1, capped at 20 server-side)")),
+		mcp.WithString("format", mcp.DefaultString("text"), mcp.Enum("text", "json"), mcp.Description("`text` (default) for the formatted text block, or `json` for an object with a `messages` array and `next_cursor`")),
 		mcp.WithReadOnlyHintAnnotation(true),
 		mcp.WithDestructiveHintAnnotation(false),
 		mcp.WithIdempotentHintAnnotation(true),
 		mcp.WithOpenWorldHintAnnotation(false),
 	)
 	s.mcp.AddTool(tool, mcp.NewTypedToolHandler(func(ctx context.Context, _ mcp.CallToolRequest, a listMessagesArgs) (*mcp.CallToolResult, error) {
+		if a.Format != "" && a.Format != "text" && a.Format != "json" {
+			return mcp.NewToolResultError(fmt.Sprintf("invalid 'format': %q (want text or json)", a.Format)), nil
+		}
 		// Clamp parameters to server-side upper bounds.
 		limit := a.Limit
 		if limit > 100 {
@@ -125,6 +146,16 @@ func (s *Server) registerListMessages() {
 		msgs, next, err := s.client.Store().ListMessagesPage(ctx, params)
 		if err != nil {
 			return mcp.NewToolResultError(err.Error()), nil
+		}
+		if a.Format == "json" {
+			page := struct {
+				Messages   []jsonMessage `json:"messages"`
+				NextCursor string        `json:"next_cursor,omitempty"`
+			}{Messages: make([]jsonMessage, len(msgs)), NextCursor: next}
+			for i, m := range msgs {
+				page.Messages[i] = jsonMessage{Message: m, SenderName: s.senderName(ctx, m)}
+			}
+			return resultJSON(page)
 		}
 		out := s.client.Store().FormatMessagesList(ctx, msgs, true)
 		if next != "" {
