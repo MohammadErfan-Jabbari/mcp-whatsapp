@@ -24,6 +24,16 @@ func TestNewWAClient_ConfiguresFullSyncEventsBeforeConnect(t *testing.T) {
 	}
 }
 
+func TestNewWAClient_EnablesMessageRetries(t *testing.T) {
+	wa := newWAClient(&wmstore.Device{}, NewStderrLogger("test", "ERROR", false), &security.Redactor{}, false)
+	if !wa.UseRetryMessageStore {
+		t.Error("UseRetryMessageStore is off")
+	}
+	if !wa.AutomaticMessageRerequestFromPhone {
+		t.Error("AutomaticMessageRerequestFromPhone is off")
+	}
+}
+
 func TestResyncLabels_RejectsDisabledFeature(t *testing.T) {
 	err := (&Client{}).ResyncLabels(context.Background())
 	if err == nil || !strings.Contains(err.Error(), "disabled") {
