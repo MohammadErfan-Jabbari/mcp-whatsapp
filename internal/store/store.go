@@ -155,6 +155,10 @@ func Open(dir string) (*Store, error) {
 		db.Close()
 		return nil, fmt.Errorf("apply transcripts schema: %w", err)
 	}
+	if err := ensureSearchIndex(db); err != nil {
+		db.Close()
+		return nil, fmt.Errorf("apply search schema: %w", err)
+	}
 	// whatsapp.db may not yet exist on first run; open lazily in read-only mode.
 	waDB, err := sql.Open("sqlite3", "file:"+waPath+"?mode=ro")
 	if err != nil {

@@ -15,6 +15,7 @@ import (
 func (s *Server) registerQueryTools() {
 	s.registerSearchContacts()
 	s.registerListMessages()
+	s.registerSearchMessages()
 	s.registerListChats()
 	s.registerGetChat()
 	s.registerGetMessageContext()

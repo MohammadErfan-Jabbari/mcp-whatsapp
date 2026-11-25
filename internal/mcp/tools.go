@@ -32,6 +32,7 @@ var readOnlyToolAccess = map[string]bool{
 	"request_sync":              true,
 	"resync_labels":             true,
 	"search_contacts":           true,
+	"search_messages":           true,
 	"send_audio_message":        false,
 	"send_contact_card":         false,
 	"send_file":                 false,
