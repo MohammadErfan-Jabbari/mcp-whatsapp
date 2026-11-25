@@ -267,7 +267,7 @@ For an archive or summarisation client, start with the explicit read-only mode:
 
 ## Sending and receiving files
 
-`WHATSAPP_MCP_MEDIA_ROOT` (default `<store>/uploads/`, created on first run) is the only directory the tools may touch for **user-supplied** send and output paths. The managed download cache lives separately under the store.
+`WHATSAPP_MCP_MEDIA_ROOT` (default `<store>/uploads/`, created with mode 0700 on first run) is the only directory the tools may touch for **user-supplied** send and output paths. The managed download cache lives separately under the store.
 
 - **Sending:** `send_file` and `send_audio_message` take a `media_path` under the root.
 - **Receiving:** `download_media` caches to `<store>/<chat_jid>/<hex(message_id)>/<safe_filename>` (checked against the stored size and SHA-256). An optional `output_path` also writes a separate copy under the root. An existing file there is never replaced: the call succeeds without downloading again if that file already holds this media, and fails otherwise.

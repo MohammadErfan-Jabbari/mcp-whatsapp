@@ -35,8 +35,25 @@ func ChmodBestEffort(path string, mode os.FileMode) error {
 	return err
 }
 
-// EnsurePrivateDB is a stub so the tests compile; the next commit implements it.
-func EnsurePrivateDB(path string) error { return nil }
+// EnsurePrivateDB creates the SQLite database at path with mode 0600 when it
+// is missing, without truncating an existing one, and tightens it and its
+// -wal, -shm and -journal files to 0600. SQLite creates those files with the
+// database file's mode, so calling this before the first open keeps every
+// file of the database private whatever the umask. Chmod is best-effort, as
+// in ChmodBestEffort.
+func EnsurePrivateDB(path string) error {
+	f, err := os.OpenFile(path, os.O_RDONLY|os.O_CREATE, 0o600)
+	if err != nil {
+		return err
+	}
+	_ = f.Close()
+	for _, p := range []string{path, path + "-wal", path + "-shm", path + "-journal"} {
+		if err := ChmodBestEffort(p, 0o600); err != nil {
+			return err
+		}
+	}
+	return nil
+}
 
 // Message mirrors the on-wire shape used by downstream consumers.
 type Message struct {
@@ -102,8 +119,9 @@ type Store struct {
 
 // Open creates (if necessary) the store directory and opens both databases.
 // Dir is the directory holding messages.db and whatsapp.db. The directory is
-// created/tightened to 0700 and each .db file ends up at 0600 to keep session
-// material and cached message contents off other local users' radar.
+// created/tightened to 0700 and each .db file and its -wal, -shm and -journal
+// files end up at 0600 to keep session material and cached message contents
+// off other local users' radar.
 func Open(dir string) (*Store, error) {
 	if err := os.MkdirAll(dir, 0o700); err != nil {
 		return nil, fmt.Errorf("create store dir: %w", err)
@@ -113,6 +131,9 @@ func Open(dir string) (*Store, error) {
 	}
 	msgPath := filepath.Join(dir, "messages.db")
 	waPath := filepath.Join(dir, "whatsapp.db")
+	if err := EnsurePrivateDB(msgPath); err != nil {
+		return nil, fmt.Errorf("create messages.db: %w", err)
+	}
 
 	db, err := sql.Open("sqlite3", "file:"+msgPath+"?_foreign_keys=on&_journal_mode=WAL&_busy_timeout=5000")
 	if err != nil {
@@ -134,14 +155,6 @@ func Open(dir string) (*Store, error) {
 		db.Close()
 		return nil, fmt.Errorf("apply transcripts schema: %w", err)
 	}
-	// Tighten messages.db after schema has been applied (the file exists
-	// by then). IsNotExist-tolerate in case a future sqlite driver version
-	// defers file creation.
-	if err := ChmodBestEffort(msgPath, 0o600); err != nil {
-		db.Close()
-		return nil, fmt.Errorf("chmod messages.db: %w", err)
-	}
-
 	// whatsapp.db may not yet exist on first run; open lazily in read-only mode.
 	waDB, err := sql.Open("sqlite3", "file:"+waPath+"?mode=ro")
 	if err != nil {

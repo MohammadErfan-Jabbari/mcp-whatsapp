@@ -150,14 +150,15 @@ func New(ctx context.Context, cfg Config) (*Client, error) {
 
 	dbLog := NewStderrLogger("Database", "INFO", true)
 	waPath := filepath.Join(cfg.StoreDir, "whatsapp.db")
+	// whatsmeow would create whatsapp.db and its journal with the process
+	// umask; create it 0600 first (best-effort — see store.ChmodBestEffort for
+	// the network-mount rationale).
+	if err := store.EnsurePrivateDB(waPath); err != nil {
+		return nil, fmt.Errorf("create whatsapp.db: %w", err)
+	}
 	container, err := sqlstore.New(ctx, "sqlite3", "file:"+waPath+"?_foreign_keys=on", redactingLogger{inner: dbLog, redactor: redactor})
 	if err != nil {
 		return nil, fmt.Errorf("open whatsmeow sqlstore: %w", err)
-	}
-	// whatsmeow creates whatsapp.db with the process umask; force 0600
-	// (best-effort — see store.ChmodBestEffort for the network-mount rationale).
-	if err := store.ChmodBestEffort(waPath, 0o600); err != nil {
-		return nil, fmt.Errorf("chmod whatsapp.db: %w", err)
 	}
 
 	device, err := container.GetFirstDevice(ctx)

@@ -196,14 +196,14 @@ func isLoopbackAddr(addr string) bool {
 }
 
 // resolveMediaRoot returns WHATSAPP_MCP_MEDIA_ROOT, or <store>/uploads when it
-// is unset, and creates the directory when it is missing.
+// is unset, and creates the directory 0700 when it is missing.
 func resolveMediaRoot(absStore string) string {
 	root := os.Getenv("WHATSAPP_MCP_MEDIA_ROOT")
 	if root == "" {
 		root = filepath.Join(absStore, "uploads")
 	}
 	root = filepath.Clean(root)
-	if err := os.MkdirAll(root, 0o755); err != nil {
+	if err := os.MkdirAll(root, 0o700); err != nil {
 		fmt.Fprintf(os.Stderr, "warn: could not create media root %q: %v\n", root, err)
 	}
 	return root
