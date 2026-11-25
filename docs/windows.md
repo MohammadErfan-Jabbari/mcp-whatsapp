@@ -13,7 +13,7 @@ In PowerShell, enable CGO and build the executable directly with Go:
 ```powershell
 go env -w CGO_ENABLED=1
 New-Item -ItemType Directory -Force bin
-go build -o .\bin\whatsapp-mcp.exe .\cmd\whatsapp-mcp
+go build -tags sqlite_fts5 -o .\bin\whatsapp-mcp.exe .\cmd\whatsapp-mcp
 ```
 
-The direct Go command avoids requiring GNU Make and Bash on Windows. If CGO is disabled or GCC is missing from `PATH`, the build reports that `go-sqlite3` requires cgo.
+The direct Go command avoids requiring GNU Make and Bash on Windows. Keep `-tags sqlite_fts5`: it compiles in the SQLite full-text index that `search_messages` uses, and the server refuses to start without it. If CGO is disabled or GCC is missing from `PATH`, the build reports that `go-sqlite3` requires cgo.

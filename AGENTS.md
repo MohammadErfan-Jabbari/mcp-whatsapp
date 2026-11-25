@@ -36,6 +36,8 @@ make vet           # go vet
 make lint          # go vet and verify gofmt
 ```
 
+The Makefile passes `-tags sqlite_fts5` to every build, vet and test. Pass it yourself when you call `go test` or `go build` directly: without it the store cannot open (see feature 14).
+
 Fixtures: `internal/store/testdata/seed.sql` seeds three chats and about twelve messages with direct/group, media, `is_from_me`, and LID-originated variants. Store tests use `openTestStore(t)` in `internal/store/testutil_test.go`. Keep tests isolated from a live WhatsApp account.
 
 ## whatsmeow upgrade cadence
@@ -50,7 +52,7 @@ make upgrade-check
 
 ## Feature implementation map
 
-The MCP tool surface has 43 tools by default and 47 when the four WhatsApp Business label tools are enabled with `serve -enable-labels` or `WHATSAPP_MCP_LABELS=1`. Read-only mode exposes 14 tools by default or 18 when labels are enabled; `is_on_whatsapp` is excluded because it queries numbers outside the archive. The label tools are read-only; transcription is excluded from read-only mode because it uploads private audio to another service.
+The MCP tool surface has 44 tools by default and 48 when the four WhatsApp Business label tools are enabled with `serve -enable-labels` or `WHATSAPP_MCP_LABELS=1`. Read-only mode exposes 15 tools by default or 19 when labels are enabled; `is_on_whatsapp` is excluded because it queries numbers outside the archive. The label tools are read-only; transcription is excluded from read-only mode because it uploads private audio to another service.
 
 1. **LID resolution** — `internal/store/lid.go` normalises `@lid` JIDs to real phone numbers via `whatsmeow_lid_map`.
 2. **Sent-message storage** — `internal/client/send.go` persists outgoing messages after `SendMessage` returns.
@@ -65,6 +67,7 @@ The MCP tool surface has 43 tools by default and 47 when the four WhatsApp Busin
 11. **WhatsApp Business labels** — `internal/client/labels.go` persists label edits and chat associations; full-sync events are enabled once during client construction when the opt-in flag is set. The four read-only tools live in `internal/mcp/tools_labels.go`.
 12. **Media retry for expired links** — `internal/client/mediaretry.go`. When `DownloadWithMediaRetry` (the `download_media` tool and media resource reads; plain `Download` never retries) gets HTTP 403/404/410 from the CDN (`whatsmeow.ErrMediaDownloadFailedWith403/404/410`; history-synced media links carry a signed `oe=` expiry), it sends one `SendMediaRetryReceipt` to the account's own phone, built from the cached row (ID, chat, from-me, group sender; in a LID-addressed group, per live `GetGroupInfo`, the cached phone-number sender is mapped back to its LID via the device's `LIDs.GetLIDForPN`), waits up to `defaultMediaRetryTimeout` (30 s) for the matching `*events.MediaRetry`, and decrypts it with `DecryptMediaRetryNotification`. It retries the download once, checks the decrypted payload against the cached length and SHA-256, and only then stores the new direct path (`store.UpdateMediaDirectPath`). Retry responses are matched by message ID and normalized chat JID. Concurrent calls for the same message share one receipt (`mediaRetryRegistry`); a caller's ctx only ends its own wait. On demand only: nothing retries in the background.
 13. **Message retries** — `newWAClient` in `internal/client/client.go` turns on whatsmeow's `UseRetryMessageStore`, which keeps the plaintext of messages sent in the last 7 days in `whatsapp.db` (whatsmeow's `whatsmeow_retry_buffer`, pruned by whatsmeow) so a recipient's retry receipt is answered after a restart, and `AutomaticMessageRerequestFromPhone`, which asks the account's own phone to resend a message this device cannot decrypt if the sender has not resent it within whatsmeow's `RequestFromPhoneDelay` (5 s). Every whatsmeow client, including pairing and rebind clients, is built there.
+14. **Full-text message search** — `internal/store/search.go` keeps `messages_fts`, an external-content FTS5 index over `messages.content` and `messages.filename` maintained by triggers; `store.Open` creates it and indexes existing messages once. `search_messages` (`internal/mcp/tools_search.go`) quotes every query word, so FTS5 operators are inert, and ranks by bm25. go-sqlite3 compiles FTS5 in only under the `sqlite_fts5` build tag, which the Makefile, CI and Dockerfile pass; without it `store.Open` fails with an error naming the tag.
 
 ## MCP tool descriptions and Glama
 

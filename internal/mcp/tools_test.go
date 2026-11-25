@@ -43,6 +43,7 @@ var expectedToolNames = []string{
 	"request_sync",
 	"resync_labels",
 	"search_contacts",
+	"search_messages",
 	"send_audio_message",
 	"send_contact_card",
 	"send_file",
@@ -127,7 +128,7 @@ func TestNewServer_RegistersAllTools(t *testing.T) {
 
 func TestNewServer_ToolCount(t *testing.T) {
 	s := NewServer(nil, nil, true)
-	const want = 47
+	const want = 48
 	if got := len(s.MCP().ListTools()); got != want {
 		t.Errorf("tool count = %d, want %d", got, want)
 	}
@@ -140,8 +141,8 @@ func TestNewServer_LabelsDisabledDoesNotAdvertiseLabelTools(t *testing.T) {
 			t.Errorf("label tool %q is advertised while labels are disabled", name)
 		}
 	}
-	if got := len(s.MCP().ListTools()); got != 43 {
-		t.Fatalf("default tool count = %d, want 43", got)
+	if got := len(s.MCP().ListTools()); got != 44 {
+		t.Fatalf("default tool count = %d, want 44", got)
 	}
 }
 
@@ -166,6 +167,7 @@ func TestToolsByDomain(t *testing.T) {
 		"tools_labels.go":     {"list_labels"},
 		"tools_privacy.go":    {"get_blocklist", "send_presence"},
 		"tools_transcribe.go": {"transcribe_audio"},
+		"tools_search.go":     {"search_messages"},
 	}
 
 	for file, names := range domains {
@@ -196,6 +198,7 @@ var expectedReadOnlyTools = map[string]bool{
 	"request_sync":         true,
 	"resync_labels":        true,
 	"search_contacts":      true,
+	"search_messages":      true,
 }
 
 func TestReadOnlyServer_RejectsMutationTools(t *testing.T) {

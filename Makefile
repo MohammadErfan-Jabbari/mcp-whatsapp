@@ -6,25 +6,28 @@ SHELL := /bin/bash
 BIN := ./bin/whatsapp-mcp
 PKGS := ./...
 GO := go
+# sqlite_fts5 compiles SQLite's FTS5 module into go-sqlite3; search_messages
+# needs it, and the store refuses to open without it.
+TAGS := sqlite_fts5
 VERSION := $(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
 LDFLAGS := -X main.Version=$(VERSION)
 
 build:
 	mkdir -p bin
-	$(GO) build -ldflags "$(LDFLAGS)" -o $(BIN) ./cmd/whatsapp-mcp
+	$(GO) build -tags=$(TAGS) -ldflags "$(LDFLAGS)" -o $(BIN) ./cmd/whatsapp-mcp
 
 test:
-	$(GO) test $(PKGS)
+	$(GO) test -tags=$(TAGS) $(PKGS)
 
 test-race:
-	$(GO) test -race $(PKGS)
+	$(GO) test -tags=$(TAGS) -race $(PKGS)
 
 test-cover:
-	$(GO) test -race -coverprofile=cover.out $(PKGS)
+	$(GO) test -tags=$(TAGS) -race -coverprofile=cover.out $(PKGS)
 	$(GO) tool cover -func=cover.out | tail -1
 
 vet:
-	$(GO) vet $(PKGS)
+	$(GO) vet -tags=$(TAGS) $(PKGS)
 
 fmt:
 	@diff -u <(echo -n) <(gofmt -d .) || (echo "gofmt differences found"; exit 1)
@@ -32,7 +35,7 @@ fmt:
 lint: vet fmt
 
 e2e: build
-	$(GO) test -tags=e2e ./e2e/...
+	$(GO) test -tags=e2e,$(TAGS) ./e2e/...
 
 login: build
 	$(BIN) login
@@ -52,5 +55,5 @@ clean:
 upgrade-check:
 	$(GO) get go.mau.fi/whatsmeow@main
 	$(GO) mod tidy
-	$(GO) build ./...
-	$(GO) test $(PKGS)
+	$(GO) build -tags=$(TAGS) ./...
+	$(GO) test -tags=$(TAGS) $(PKGS)

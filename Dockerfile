@@ -7,7 +7,7 @@ COPY go.mod go.sum ./
 RUN go mod download
 COPY . .
 ENV CGO_ENABLED=1
-RUN go build -trimpath -ldflags "-s -w -X main.Version=${VERSION}" \
+RUN go build -tags sqlite_fts5 -trimpath -ldflags "-s -w -X main.Version=${VERSION}" \
     -o /out/whatsapp-mcp ./cmd/whatsapp-mcp
 
 FROM debian:bookworm-slim@sha256:7ff6ba31527b9e336162fa061746c366c4b2032f4d2cff2078bea43f78efe3f8 AS runtime

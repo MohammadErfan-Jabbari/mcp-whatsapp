@@ -4,7 +4,7 @@
 [![CI](https://github.com/Sealjay/mcp-whatsapp/actions/workflows/ci.yml/badge.svg)](https://github.com/Sealjay/mcp-whatsapp/actions/workflows/ci.yml)
 [![Go 1.26+](https://img.shields.io/badge/Go-1.26%2B-00ADD8?logo=go&logoColor=white)](https://go.dev/)
 [![MCP](https://img.shields.io/badge/MCP-protocol-6366f1)](https://modelcontextprotocol.io/)
-[![43 tools](https://img.shields.io/badge/tools-43-blue)](#tools)
+[![44 tools](https://img.shields.io/badge/tools-44-blue)](#tools)
 [![whatsmeow](https://img.shields.io/badge/whatsmeow-multidevice-25D366?logo=whatsapp&logoColor=white)](https://github.com/tulir/whatsmeow)
 [![Sealjay/mcp-whatsapp MCP server](https://glama.ai/mcp/servers/Sealjay/mcp-whatsapp/badges/score.svg?)](https://glama.ai/mcp/servers/Sealjay/mcp-whatsapp)
 [![GitHub issues](https://img.shields.io/github/issues/Sealjay/mcp-whatsapp)](https://github.com/Sealjay/mcp-whatsapp/issues)
@@ -22,7 +22,7 @@ What you can do with it:
 - Transcribe voice notes through a speech-to-text service you configure (opt-in).
 - Run with `serve -read-only` to exclude message-sending and account-mutation tools.
 
-There are 43 tools advertised by default. That count includes `transcribe_audio`, which needs a speech-to-text endpoint before it can work. Four optional, read-only WhatsApp Business label tools bring the total to 47. See [Tools](#tools) for the full reference and the [mode table](#tool-availability-by-mode).
+There are 44 tools advertised by default. That count includes `transcribe_audio`, which needs a speech-to-text endpoint before it can work. Four optional, read-only WhatsApp Business label tools bring the total to 48. See [Tools](#tools) for the full reference and the [mode table](#tool-availability-by-mode).
 
 > **Data sharing.** Anything read through MCP tools or resources (messages, contact names, media bytes) is available to your client, which may pass it to its model provider. Transcription uploads audio to the endpoint you configure.
 
@@ -33,7 +33,7 @@ There are 43 tools advertised by default. That count includes `transcribe_audio`
 ### Prerequisites
 
 - Go 1.26+ to build from source.
-- A C toolchain with CGO enabled for every source build (the SQLite driver needs it).
+- A C toolchain with CGO enabled for every source build (the SQLite driver needs it). Source builds also need the `sqlite_fts5` build tag for message search; `make build` sets it, and a binary built without it stops at startup with an error that names the tag.
 - Make and Bash to use `make build`. On Windows, or without Make, build directly with Go: see [docs/windows.md](docs/windows.md).
 - An MCP client that can reach an HTTP MCP endpoint, directly or through a bridge (Claude Code, Cursor, Claude Desktop and others).
 - FFmpeg (_optional_): required only for `send_audio_message` when the input is not already `.ogg` Opus. Without it, use `send_file` to send raw audio.
@@ -76,7 +76,7 @@ WhatsApp sends history to a linked device while it pairs, and by default the pho
 
 - **New pairings only.** The request travels in the pairing handshake, so an already-linked device gets nothing more; unlink it and pair again.
 - **The phone decides** how much it sends, and delivery and completeness are controlled by WhatsApp. A sync can run for a long while after pairing: keep the phone online and `serve` running.
-- **Storage.** `messages.db` can grow substantially (media is still fetched only on demand).
+- **Storage.** `messages.db` can grow substantially (media is still fetched only on demand). It also holds the full-text index behind `search_messages`, which the first start after an upgrade builds from the messages already cached. If you run `VACUUM` on it by hand, SQLite may renumber the rows the index points at: rebuild the index afterwards with `INSERT INTO messages_fts(messages_fts) VALUES('rebuild');`.
 
 ### Connect your MCP client
 
@@ -110,14 +110,14 @@ Ask the client to call `get_status` (connection and pairing state) and `list_cha
 
 ## Tools
 
-The default set is 43 tools grouped by purpose. `-enable-labels` adds four read-only WhatsApp Business tools (47 total).
+The default set is 44 tools grouped by purpose. `-enable-labels` adds four read-only WhatsApp Business tools (48 total).
 
 ### Tool availability by mode
 
 | Mode | Labels off | Labels on |
 |---|---|---|
-| Full access (`serve`) | 43 tools | 47 tools |
-| Read-only (`serve -read-only`) | 14 tools | 18 tools |
+| Full access (`serve`) | 44 tools | 48 tools |
+| Read-only (`serve -read-only`) | 15 tools | 19 tools |
 
 - `transcribe_audio` is always advertised in full-access mode but works only when `WHATSAPP_MCP_TRANSCRIBE_URL` is set. It is excluded from read-only mode because it uploads private audio to another service.
 - Read-only mode removes tools that send messages, mark messages read, publish presence or change the WhatsApp account. It also removes `is_on_whatsapp`, which asks WhatsApp about numbers outside the archive. It still allows network access, media downloads, history requests, writes to the local cache (including label syncs), MCP resources, and pairing on `/pair`. In every mode, the daemon asks your own phone to resend a message it cannot decrypt.
@@ -130,6 +130,7 @@ The default set is 43 tools grouped by purpose. `-enable-labels` adds four read-
 |---|---|
 | `search_contacts` | Substring search across cached contact names and phone numbers |
 | `list_messages` | Query + filter messages; returns formatted text with context windows |
+| `search_messages` | Full-text search of message text and attachment file names, best match first; returns JSON hits with snippets |
 | `list_chats` | List chats with last-message preview; sort by activity or name |
 | `get_chat` | Chat metadata by JID |
 | `get_message_context` | Before/after window around a specific message |
@@ -284,7 +285,7 @@ Paths outside the root, including symlinks that resolve outside it, are rejected
 
 The cache follows edits and deletions for everyone, whether they arrive live, in history sync, or are made through `edit_message` / `delete_message`:
 
-- **Edits** replace the cached text (or media caption) and keep the message's ID and timestamp. `list_messages` marks the row `[edited]` and searches match the new text.
+- **Edits** replace the cached text (or media caption) and keep the message's ID and timestamp. `list_messages` marks the row `[edited]`, and both `list_messages` and `search_messages` match the new text.
 - **Deletions for everyone** mark the row deleted and record when: `list_messages` shows `[deleted <time> UTC]` before the text, and `get_message_context` adds `revoked: true` and `revoked_at`. The cache never removes the message: its text, media fields, poll data and any downloaded copy are kept, and it still matches searches.
 - Only the original sender's edits and deletions are applied; a deletion of someone else's message is applied only in a group, from an admin. Edits and deletions of messages that are not cached are ignored.
 - `list_messages` cursors are positional (the normalised timestamp key plus the message ID), not offsets: pass the `next_cursor` line of a previous response back as `cursor` to continue. An edit keeps both ordering fields and a deletion never removes the row, so an issued cursor survives edits and deletions; messages arriving mid-walk can neither duplicate nor skip results.
