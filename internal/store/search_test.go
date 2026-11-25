@@ -174,6 +174,9 @@ func TestSearchMessages_QuerySyntaxIsInert(t *testing.T) {
 	if got := sortedIDs(t, s, SearchParams{Query: `"hello" "alice"`}); got != "a1" {
 		t.Errorf("quoted words = %q, want a1", got)
 	}
+	if got := sortedIDs(t, s, SearchParams{Query: "hello\x00alice"}); got != "a1" {
+		t.Errorf("NUL-separated words = %q, want a1", got)
+	}
 	for _, q := range []string{"", "  \t"} {
 		if _, err := s.SearchMessages(context.Background(), SearchParams{Query: q}); err == nil {
 			t.Errorf("blank query %q accepted", q)
