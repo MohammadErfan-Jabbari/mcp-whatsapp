@@ -3,6 +3,7 @@ package mcp
 import (
 	"context"
 	"encoding/json"
+	"regexp"
 	"strings"
 	"testing"
 
@@ -107,5 +108,111 @@ func TestPairingStatus_AwaitingQRExpired(t *testing.T) {
 	}
 	if detail, _ := env["detail"].(string); !strings.Contains(detail, "expired") {
 		t.Errorf("detail = %v, want an expiry message", env["detail"])
+	}
+}
+
+type listMessagesJSON struct {
+	Messages []struct {
+		ID         string `json:"id"`
+		ChatJID    string `json:"chat_jid"`
+		ChatName   string `json:"chat_name"`
+		Content    string `json:"content"`
+		SenderName string `json:"sender_name"`
+	} `json:"messages"`
+	NextCursor string `json:"next_cursor"`
+}
+
+func listMessagesTool(t *testing.T, s *Server, args map[string]any) listMessagesJSON {
+	t.Helper()
+	out, isErr := callTool(t, s, "list_messages", args)
+	if isErr {
+		t.Fatalf("list_messages(%v) error: %s", args, out)
+	}
+	var page listMessagesJSON
+	if err := json.Unmarshal([]byte(out), &page); err != nil {
+		t.Fatalf("decode %q: %v", out, err)
+	}
+	return page
+}
+
+// format=json returns the same page as the text format, as message objects
+// plus the cursor, and a cursor walk visits each message once.
+func TestListMessagesTool_JSONFormat(t *testing.T) {
+	s := newStoreBackedReadOnlyServer(t)
+	alice := "447700000001@s.whatsapp.net"
+
+	first := listMessagesTool(t, s, map[string]any{"chat_jid": alice, "format": "json", "include_context": false, "limit": 1})
+	if len(first.Messages) != 1 || first.NextCursor == "" {
+		t.Fatalf("first page = %+v, want one message and a cursor", first)
+	}
+	m := first.Messages[0]
+	if m.ID != "m2" || m.ChatJID != alice || m.ChatName != "Alice" || m.SenderName != "Alice" || m.Content != "gym bag ready, see you at the gym" {
+		t.Fatalf("first message = %+v, want m2 from Alice", m)
+	}
+	second := listMessagesTool(t, s, map[string]any{"chat_jid": alice, "format": "json", "include_context": false, "limit": 1, "cursor": first.NextCursor})
+	if len(second.Messages) != 1 || second.Messages[0].ID != "m1" || second.NextCursor != "" {
+		t.Fatalf("second page = %+v, want m1 and no cursor", second)
+	}
+
+	out, _ := callTool(t, s, "list_messages", map[string]any{"chat_jid": "nobody@s.whatsapp.net", "format": "json"})
+	var empty map[string]json.RawMessage
+	if err := json.Unmarshal([]byte(out), &empty); err != nil || string(empty["messages"]) != "[]" || len(empty) != 1 {
+		t.Fatalf("empty page = %s, want only an empty messages array", out)
+	}
+}
+
+// With include_context, the JSON array holds the surrounding messages too,
+// the same messages in the same order as the text format lists them.
+func TestListMessagesTool_JSONFormatMatchesTextWithContext(t *testing.T) {
+	s := newStoreBackedReadOnlyServer(t)
+	args := map[string]any{"chat_jid": "447700000001@s.whatsapp.net", "query": "seven"}
+	text, _ := callTool(t, s, "list_messages", args)
+	var want []string
+	for _, m := range regexp.MustCompile(`\[ID: ([^\]]+)\]`).FindAllStringSubmatch(text, -1) {
+		want = append(want, m[1])
+	}
+	args["format"] = "json"
+	var got []string
+	for _, m := range listMessagesTool(t, s, args).Messages {
+		got = append(got, m.ID)
+	}
+	if len(want) < 2 || strings.Join(got, ",") != strings.Join(want, ",") {
+		t.Fatalf("JSON ids = %v, text ids = %v; want the same match plus context", got, want)
+	}
+}
+
+func TestListMessagesTool_FormatDefaultsToText(t *testing.T) {
+	s := newStoreBackedReadOnlyServer(t)
+	for _, args := range []map[string]any{
+		{"chat_jid": "447700000001@s.whatsapp.net", "include_context": false},
+		{"chat_jid": "447700000001@s.whatsapp.net", "include_context": false, "format": "text"},
+	} {
+		out, isErr := callTool(t, s, "list_messages", args)
+		if isErr || json.Valid([]byte(out)) || !strings.Contains(out, "[ID: m2]") {
+			t.Fatalf("list_messages(%v) = %q, want the text format", args, out)
+		}
+	}
+	if out, isErr := callTool(t, s, "list_messages", map[string]any{"format": "xml"}); !isErr {
+		t.Fatalf("format xml = %q, want an error", out)
+	}
+}
+
+// search_messages hits carry the sender's display name, as list_messages
+// JSON and the text format do.
+func TestSearchMessagesTool_HitsCarrySenderName(t *testing.T) {
+	s := newStoreBackedReadOnlyServer(t)
+	out, isErr := callTool(t, s, "search_messages", map[string]any{"query": "seven"})
+	if isErr {
+		t.Fatalf("search_messages error: %s", out)
+	}
+	var hits []struct {
+		ID         string `json:"id"`
+		SenderName string `json:"sender_name"`
+	}
+	if err := json.Unmarshal([]byte(out), &hits); err != nil {
+		t.Fatalf("decode %q: %v", out, err)
+	}
+	if len(hits) != 1 || hits[0].ID != "m1" || hits[0].SenderName != "Alice" {
+		t.Fatalf("hits = %+v, want m1 from Alice", hits)
 	}
 }
