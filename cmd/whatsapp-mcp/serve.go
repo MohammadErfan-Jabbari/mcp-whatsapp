@@ -92,14 +92,7 @@ func runServe(storeDir string, redactor *security.Redactor, args []string) int {
 		fmt.Fprintf(os.Stderr, "resolve store dir: %v\n", err)
 		return 1
 	}
-	allowedMediaRoot := os.Getenv("WHATSAPP_MCP_MEDIA_ROOT")
-	if allowedMediaRoot == "" {
-		allowedMediaRoot = filepath.Join(absStore, "uploads")
-	}
-	allowedMediaRoot = filepath.Clean(allowedMediaRoot)
-	if mkErr := os.MkdirAll(allowedMediaRoot, 0o755); mkErr != nil {
-		fmt.Fprintf(os.Stderr, "warn: could not create media root %q: %v\n", allowedMediaRoot, mkErr)
-	}
+	allowedMediaRoot := resolveMediaRoot(absStore)
 	// Operator UX: make the media root obvious on boot so users know where
 	// to drop outbound attachments.
 	fmt.Fprintf(os.Stderr, "media root: %s (drop outbound files here)\n", allowedMediaRoot)
@@ -200,4 +193,18 @@ func isLoopbackAddr(addr string) bool {
 		}
 	}
 	return true
+}
+
+// resolveMediaRoot returns WHATSAPP_MCP_MEDIA_ROOT, or <store>/uploads when it
+// is unset, and creates the directory when it is missing.
+func resolveMediaRoot(absStore string) string {
+	root := os.Getenv("WHATSAPP_MCP_MEDIA_ROOT")
+	if root == "" {
+		root = filepath.Join(absStore, "uploads")
+	}
+	root = filepath.Clean(root)
+	if err := os.MkdirAll(root, 0o755); err != nil {
+		fmt.Fprintf(os.Stderr, "warn: could not create media root %q: %v\n", root, err)
+	}
+	return root
 }

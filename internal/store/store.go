@@ -35,6 +35,9 @@ func ChmodBestEffort(path string, mode os.FileMode) error {
 	return err
 }
 
+// EnsurePrivateDB is a stub so the tests compile; the next commit implements it.
+func EnsurePrivateDB(path string) error { return nil }
+
 // Message mirrors the on-wire shape used by downstream consumers.
 type Message struct {
 	ID          string    `json:"id"`
